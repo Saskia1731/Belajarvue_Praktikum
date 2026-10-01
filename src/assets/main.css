@@ -1,0 +1,41 @@
+:root {
+    --ink: #1f2937;
+    --muted: #6b7280;
+    --coral: #e8590c;
+    --coral-dark: #c2410c;
+    --coral-soft: #fff1e8;
+    --cream: #fdf8f3;
+    --sand: #f3e9df;
+    --line: #eadfd3;
+    --white: #ffffff;
+    --radius: 14px;
+  }
+  
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+  
+  body {
+    margin: 0;
+    font-family: 'Avenir Next', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--cream);
+    color: var(--ink);
+    line-height: 1.55;
+  }
+  
+  h1, h2, h3, p { margin: 0; }
+  h1, h2, h3 { letter-spacing: -0.01em; }
+  a { color: inherit; }
+  
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  /* transisi pergantian halaman anak di Browse */
+  .swap-enter-active,
+  .swap-leave-active { transition: opacity 0.18s ease, transform 0.18s ease; }
+  .swap-enter-from { opacity: 0; transform: translateX(14px); }
+  .swap-leave-to { opacity: 0; transform: translateX(-14px); }
