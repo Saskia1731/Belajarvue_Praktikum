@@ -1,5 +1,5 @@
 <script setup>
-import AppCard from '@/components/ui/AppCard.vue';
+import AppCard from '@/components/ui/AppCard.vue'
 
 defineProps({
   event: {
@@ -10,24 +10,16 @@ defineProps({
     type: Boolean,
     default: false
   }
-});
+})
 
-defineEmits(['view-detail', 'complete', 'delete']);
+defineEmits(['view-detail', 'complete', 'delete'])
 </script>
 
 <template>
-  <AppCard
-    :class="['organizer-event-card', { 'card-completed': isCompleted }]"
-  >
+  <AppCard :class="['organizer-event-card', { 'card-completed': isCompleted }]">
     <div class="card-header">
       <span class="category-badge">{{ event.cat }}</span>
-
-      <span
-        :class="[
-          'status-badge',
-          isCompleted ? 'status-completed' : 'status-active'
-        ]"
-      >
+      <span :class="['status-badge', isCompleted ? 'status-completed' : 'status-active']">
         {{ isCompleted ? 'Completed' : 'Active' }}
       </span>
     </div>
@@ -37,7 +29,7 @@ defineEmits(['view-detail', 'complete', 'delete']);
     </h3>
 
     <p class="event-meta">
-      🗓️ {{ event.date }} &bull; {{ event.loc }}
+      📅 {{ event.date }} &bull; 📍 {{ event.loc }}
     </p>
 
     <p class="event-desc">{{ event.desc }}</p>
@@ -48,33 +40,21 @@ defineEmits(['view-detail', 'complete', 'delete']);
 
     <div class="card-actions">
       <template v-if="!isCompleted">
-        <button
-          class="btn-action btn-detail"
-          @click="$emit('view-detail', event.id)"
-        >
+        <button class="btn-action btn-detail" @click="$emit('view-detail', event.id)">
           👁️ View Details
         </button>
 
-        <button
-          class="btn-action btn-complete"
-          @click="$emit('complete', event)"
-        >
+        <button class="btn-action btn-complete" @click="$emit('complete', event)">
           ✅ Complete Event
         </button>
 
-        <button
-          class="btn-action btn-delete"
-          @click="$emit('delete', event)"
-        >
+        <button class="btn-action btn-delete" @click="$emit('delete', event)">
           🗑️ Delete
         </button>
       </template>
 
       <template v-else>
-        <button
-          class="btn-action btn-delete"
-          @click="$emit('delete', event)"
-        >
+        <button class="btn-action btn-delete" @click="$emit('delete', event)">
           🗑️ Delete from Archive
         </button>
       </template>
@@ -132,7 +112,7 @@ defineEmits(['view-detail', 'complete', 'delete']);
 
 .text-strike {
   text-decoration: line-through;
-  color: #a8a8a8;
+  color: #8a8d93;
 }
 
 .card-completed {

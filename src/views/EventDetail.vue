@@ -1,44 +1,33 @@
-
 <script setup>
-import { computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useEvents } from '@/composables/useEvents'
+
 import AppButton from '@/components/ui/AppButton.vue'
 import AppCard from '@/components/ui/AppCard.vue'
 
 const route = useRoute()
 const router = useRouter()
 
-const { getEventById, isUserRegistered } = useEvents()
+const {
+  fetchEventById,
+  loading,
+  error
+} = useEvents()
 
-// Mengambil data event berdasarkan ID pada URL
-const event = computed(() => {
-  return getEventById(route.params.id)
-})
+const event = ref(null)
 
-// Memeriksa apakah pengguna sudah terdaftar
-const isRegistered = computed(() => {
-  return event.value
-    ? isUserRegistered(event.value.id)
-    : false
-})
-
-// Kembali ke daftar event
-const backToEvents = () => {
-  router.push('/browse/events')
+// GET DETAIL EVENT DARI API
+const loadEvent = async () => {
+  event.value = null
+  event.value = await fetchEventById(route.params.id)
 }
 
-// Membuka formulir registrasi
-const registerEvent = () => {
-  if (!event.value || event.value.done || event.value.quota <= 0) {
-    return
-  }
+onMounted(loadEvent)
 
-  if (isRegistered.value) {
-    return
-  }
-
-  router.push(`/browse/events/${event.value.id}/register`)
+// KEMBALI KE DAFTAR EVENT
+const backToEvents = () => {
+  router.push('/browse/events')
 }
 </script>
 
@@ -48,33 +37,44 @@ const registerEvent = () => {
       &larr; Back to Events
     </button>
 
-    <!-- Event ditemukan -->
-    <div v-if="event">
+    <!-- LOADING STATE -->
+    <div v-if="loading" class="not-found-card">
+      <p>Memuat detail acara...</p>
+    </div>
+
+    <!-- ERROR STATE -->
+    <div v-else-if="error && !event" class="not-found-card">
+      <h2>NETWORK ERROR</h2>
+
+      <p>{{ error }}</p>
+
+      <AppButton
+        variant="primary"
+        @click="loadEvent"
+      >
+        Coba Lagi
+      </AppButton>
+    </div>
+
+    <!-- EVENT DITEMUKAN -->
+    <div v-else-if="event">
       <div class="detail-header">
         <div class="header-tags">
           <span class="event-tag">
             {{ event.cat }}
           </span>
 
-          <span v-if="event.done" class="status-tag status-ended">
+          <span
+            v-if="event.done"
+            class="status-tag status-ended"
+          >
             Event Finished
           </span>
 
           <span
-            v-else-if="isRegistered"
-            class="status-tag status-registered"
+            v-else
+            class="status-tag status-live"
           >
-            Registered
-          </span>
-
-          <span
-            v-else-if="event.quota <= 0"
-            class="status-tag status-soldout"
-          >
-            Sold Out
-          </span>
-
-          <span v-else class="status-tag status-live">
             Open Registration
           </span>
         </div>
@@ -108,17 +108,13 @@ const registerEvent = () => {
 
         <div class="sidebar">
           <AppCard class="ticket-card sticky-pane">
-            <h3>Event Registration</h3>
-
-            <p v-if="event.done" class="ticket-desc">
-              Registration is closed as this event has concluded.
-            </p>
+            <h3>Event Information</h3>
 
             <p
-              v-else-if="isRegistered"
-              class="ticket-desc text-success"
+              v-if="event.done"
+              class="ticket-desc"
             >
-              You are registered for this event. Your booking is confirmed.
+              This event has concluded.
             </p>
 
             <p
@@ -128,61 +124,44 @@ const registerEvent = () => {
               All seats for this event are currently full.
             </p>
 
-            <p v-else class="ticket-desc">
-              Secure your spot now before the remaining quota is filled.
+            <p
+              v-else
+              class="ticket-desc"
+            >
+              This event is currently open for registration.
             </p>
 
             <div class="action-buttons">
               <AppButton
-                v-if="event.done"
                 variant="secondary"
-                class="btn-register btn-disabled"
+                class="btn-register"
                 disabled
+                v-if="event.done"
               >
-                Registration Closed
+                Event Finished
               </AppButton>
 
-              <div
-                v-else-if="isRegistered"
-                class="registered-action-group"
-              >
-                <AppButton
-                  variant="secondary"
-                  class="btn-register btn-registered"
-                  disabled
-                >
-                  Already Registered
-                </AppButton>
-
-                <router-link
-                  :to="`/browse/your-events/${event.id}`"
-                  class="view-receipt-link"
-                >
-                  View Your Ticket Receipt &rarr;
-                </router-link>
-              </div>
-
               <AppButton
-                v-else-if="event.quota <= 0"
                 variant="secondary"
-                class="btn-register btn-disabled"
+                class="btn-register"
                 disabled
+                v-else-if="event.quota <= 0"
               >
                 Sold Out
               </AppButton>
 
               <AppButton
-                v-else
                 variant="primary"
                 class="btn-register"
-                @click="registerEvent"
+                disabled
+                v-else
               >
-                Register Now
+                Registration Information
               </AppButton>
             </div>
 
             <p
-              v-if="!event.done && !isRegistered && event.quota > 0"
+              v-if="!event.done && event.quota > 0"
               class="spots"
             >
               {{ event.quota }} seats available
@@ -192,7 +171,7 @@ const registerEvent = () => {
       </div>
     </div>
 
-    <!-- Event tidak ditemukan -->
+    <!-- EVENT TIDAK DITEMUKAN -->
     <div v-else class="not-found-card">
       <h2>404 - Event Not Found</h2>
 
@@ -201,7 +180,10 @@ const registerEvent = () => {
         by the organizer.
       </p>
 
-      <AppButton variant="primary" @click="backToEvents">
+      <AppButton
+        variant="primary"
+        @click="backToEvents"
+      >
         Back to Event Catalog
       </AppButton>
     </div>
@@ -265,19 +247,14 @@ const registerEvent = () => {
   color: #27ae60;
 }
 
-.status-registered {
-  background: #dbeafe;
-  color: #1d4ed8;
+.status-ended {
+  background: rgba(108, 117, 125, 0.15);
+  color: #6c757d;
 }
 
 .status-soldout {
   background: #fee2e2;
   color: #b91c1c;
-}
-
-.status-ended {
-  background: rgba(108, 117, 125, 0.15);
-  color: #6c757d;
 }
 
 .detail-header h1 {
@@ -347,11 +324,6 @@ const registerEvent = () => {
   font-size: 0.95rem;
 }
 
-.ticket-desc.text-success {
-  color: #15803d;
-  font-weight: 500;
-}
-
 .ticket-desc.text-warning {
   color: #b91c1c;
   font-weight: 500;
@@ -363,39 +335,6 @@ const registerEvent = () => {
 
 .btn-register {
   width: 100%;
-}
-
-.btn-disabled {
-  cursor: not-allowed;
-  opacity: 0.65;
-}
-
-.btn-registered {
-  cursor: default;
-  background: #f1f5f9;
-  color: #1e293b;
-  border: 1px solid var(--border-color);
-  opacity: 1;
-}
-
-.registered-action-group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  width: 100%;
-}
-
-.view-receipt-link {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--primary);
-  text-decoration: none;
-  display: inline-block;
-  transition: color 0.2s;
-}
-
-.view-receipt-link:hover {
-  text-decoration: underline;
 }
 
 .spots {

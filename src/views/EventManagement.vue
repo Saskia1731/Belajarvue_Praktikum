@@ -1,86 +1,141 @@
-<script setup>
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
-import { useEvents } from '@/composables/useEvents';
-import AppModal from '@/components/ui/AppModal.vue';
-import AppButton from '@/components/ui/AppButton.vue';
-import OrganizerEventCard from '@/components/event/OrganizerEventCard.vue';
-import EventCreateForm from '@/components/event/EventCreateForm.vue';
 
-const router = useRouter();
+<script setup>
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { useEvents } from '@/composables/useEvents'
+
+import AppModal from '@/components/ui/AppModal.vue'
+import AppButton from '@/components/ui/AppButton.vue'
+import OrganizerEventCard from '@/components/event/OrganizerEventCard.vue'
+import EventCreateForm from '@/components/event/EventCreateForm.vue'
+
+const router = useRouter()
 
 const {
-  activeEvents,
-  completedEvents,
+  events,
+  loading,
+  error,
+  fetchEvents,
   createEvent,
-  completeEvent,
   deleteEvent
-} = useEvents();
+} = useEvents()
 
-// KONDISI TAB AKTIF: 'active' | 'create' | 'completed'
-const currentTab = ref('active');
+// KONDISI TAB AKTIF
+const currentTab = ref('active')
 
-// MODAL STATE FOR ACTIONS (Complete & Delete)
-const isModalOpen = ref(false);
-const modalAction = ref('complete'); // 'complete' | 'delete'
-const selectedEvent = ref(null);
+// LOADING AWAL
+const isInitialLoading = ref(true)
 
-const handleOpenCompleteModal = (event) => {
-  selectedEvent.value = event;
-  modalAction.value = 'complete';
-  isModalOpen.value = true;
-};
+// MODAL STATE
+const isModalOpen = ref(false)
+const selectedEvent = ref(null)
+const isProcessingAction = ref(false)
 
-const handleOpenDeleteModal = (event) => {
-  selectedEvent.value = event;
-  modalAction.value = 'delete';
-  isModalOpen.value = true;
-};
+// MENGAMBIL DATA EVENT DARI API
+const loadEvents = async () => {
+  isInitialLoading.value = true
 
-const handleConfirmModal = () => {
-  if (selectedEvent.value) {
-    if (modalAction.value === 'complete') {
-      completeEvent(selectedEvent.value.id);
-    } else if (modalAction.value === 'delete') {
-      deleteEvent(selectedEvent.value.id);
-    }
-
-    isModalOpen.value = false;
-    selectedEvent.value = null;
+  try {
+    await fetchEvents()
+  } finally {
+    isInitialLoading.value = false
   }
-};
+}
 
+onMounted(() => {
+  loadEvents()
+})
+
+// MEMISAHKAN EVENT AKTIF DAN COMPLETED
+const activeEvents = computed(() => {
+  return events.value.filter(event => !event.done)
+})
+
+const completedEvents = computed(() => {
+  return events.value.filter(event => event.done)
+})
+
+// MEMBUKA MODAL DELETE
+const handleOpenDeleteModal = (event) => {
+  selectedEvent.value = event
+  isModalOpen.value = true
+}
+
+// KONFIRMASI DELETE
+const handleConfirmModal = async () => {
+  if (!selectedEvent.value) return
+
+  isProcessingAction.value = true
+
+  try {
+    await deleteEvent(selectedEvent.value.id)
+
+    isModalOpen.value = false
+    selectedEvent.value = null
+  } catch (err) {
+    console.error('Gagal menghapus acara:', err)
+  } finally {
+    isProcessingAction.value = false
+  }
+}
+
+// MEMBATALKAN MODAL
 const handleCancelModal = () => {
-  isModalOpen.value = false;
-  selectedEvent.value = null;
-};
+  if (isProcessingAction.value) return
 
-// HANDLER EVENT DIBUAT DARI EventCreateForm
-const handleCreateEvent = (eventData) => {
-  createEvent(eventData);
-  setTimeout(() => {
-    currentTab.value = 'active';
-  }, 1000);
-};
+  isModalOpen.value = false
+  selectedEvent.value = null
+}
+
+// MEMBUAT EVENT BARU
+const handleCreateEvent = async (eventData) => {
+  try {
+    await createEvent({
+      ...eventData,
+      done: false
+    })
+
+    currentTab.value = 'active'
+  } catch (err) {
+    console.error('Gagal membuat acara:', err)
+  }
+}
+
+// MEMBUKA DETAIL EVENT
+const handleViewDetail = (id) => {
+  router.push(`/browse/events/${id}`)
+}
+
+// MENGAMBIL DATA SAAT DIMINTA ULANG
+const handleRetry = async () => {
+  await loadEvents()
+}
 </script>
 
 <template>
   <div class="event-management-page">
+
+    <!-- PAGE HEADER -->
     <div class="page-header">
-      <div>
+      <div class="header-info">
         <h2>Event Management Control</h2>
+
         <p class="subtitle">
           Manage event lifecycle, publish new events, and archive completed ones.
         </p>
       </div>
 
-      <AppButton variant="primary" @click="currentTab = 'create'">
+      <AppButton
+        variant="primary"
+        @click="currentTab = 'create'"
+      >
         ＋ Create New Event
       </AppButton>
     </div>
 
-    <!-- TAB NAVIGATION SYSTEM -->
+    <!-- TAB NAVIGATION -->
     <div class="tabs-container">
+
       <button
         :class="['tab-btn', { active: currentTab === 'active' }]"
         @click="currentTab = 'active'"
@@ -101,46 +156,125 @@ const handleCreateEvent = (eventData) => {
       >
         ☑️ Completed Events ({{ completedEvents.length }})
       </button>
+
     </div>
 
-    <!-- TAB 1: ACTIVE EVENTS LIST -->
-    <section v-if="currentTab === 'active'" class="tab-pane">
-      <div v-if="activeEvents.length > 0" class="events-grid">
+    <!-- ERROR STATE -->
+    <div
+      v-if="error && events.length === 0 && !isInitialLoading"
+      class="error-card"
+    >
+      <h3>Something went wrong!</h3>
+
+      <p>{{ error }}</p>
+
+      <button
+        class="retry-button"
+        @click="handleRetry"
+      >
+        Try Again
+      </button>
+    </div>
+
+    <!-- INITIAL LOADING -->
+    <section
+      v-else-if="isInitialLoading"
+      class="loading-container"
+    >
+      <div
+        v-for="n in 3"
+        :key="n"
+        class="skeleton skeleton-card"
+      ></div>
+    </section>
+
+    <!-- TAB 1: ACTIVE EVENTS -->
+    <section
+      v-else-if="currentTab === 'active'"
+      class="tab-pane"
+    >
+
+      <div class="tab-heading">
+        <div>
+          <h3>Active Events</h3>
+          <p>Manage your currently available events.</p>
+        </div>
+      </div>
+
+      <div
+        v-if="activeEvents.length > 0"
+        class="events-grid"
+      >
         <OrganizerEventCard
           v-for="item in activeEvents"
           :key="item.id"
           :event="item"
-          @view-detail="(id) => router.push(`/browse/events/${id}`)"
-          @complete="handleOpenCompleteModal"
+          @view-detail="handleViewDetail"
           @delete="handleOpenDeleteModal"
         />
       </div>
 
-      <!-- EMPTY STATE ACTIVE -->
-      <div v-else class="empty-state">
+      <div
+        v-else
+        class="empty-state"
+      >
         <div class="empty-icon">📭</div>
+
         <h3>No Active Events</h3>
+
         <p>
-          All events have ended or none have been created yet. Please create a
-          new event.
+          All events have ended or none have been created yet.
+          Please create a new event.
         </p>
-        <AppButton variant="primary" @click="currentTab = 'create'">
+
+        <AppButton
+          variant="primary"
+          @click="currentTab = 'create'"
+        >
           Create Event Now
         </AppButton>
       </div>
+
     </section>
 
-    <!-- TAB 2: CREATE EVENT FORM -->
-    <section v-if="currentTab === 'create'" class="tab-pane">
+    <!-- TAB 2: CREATE EVENT -->
+    <section
+      v-else-if="currentTab === 'create'"
+      class="tab-pane"
+    >
+
+      <div class="tab-heading">
+        <div>
+          <h3>Create New Event</h3>
+          <p>Fill in the information below to publish a new event.</p>
+        </div>
+      </div>
+
       <EventCreateForm
+        :loading="loading"
         @submit="handleCreateEvent"
         @cancel="currentTab = 'active'"
       />
+
     </section>
 
-    <!-- TAB 3: COMPLETED EVENTS (ARCHIVE) -->
-    <section v-if="currentTab === 'completed'" class="tab-pane">
-      <div v-if="completedEvents.length > 0" class="events-grid">
+    <!-- TAB 3: COMPLETED EVENTS -->
+    <section
+      v-else-if="currentTab === 'completed'"
+      class="tab-pane"
+    >
+
+      <div class="tab-heading">
+        <div>
+          <h3>Completed Events</h3>
+          <p>View and manage your archived events.</p>
+        </div>
+      </div>
+
+      <div
+        v-if="completedEvents.length > 0"
+        class="events-grid"
+      >
         <OrganizerEventCard
           v-for="item in completedEvents"
           :key="item.id"
@@ -150,80 +284,94 @@ const handleCreateEvent = (eventData) => {
         />
       </div>
 
-      <!-- EMPTY STATE COMPLETED -->
-      <div v-else class="empty-state">
+      <div
+        v-else
+        class="empty-state"
+      >
         <div class="empty-icon">📁</div>
+
         <h3>No Completed Events</h3>
-        <p>Events marked as completed will be archived here permanently.</p>
+
+        <p>
+          Events marked as completed will be archived here permanently.
+        </p>
       </div>
+
     </section>
 
-    <!-- MODAL KONFIRMASI DENGAN BACKDROP BLUR -->
+    <!-- MODAL DELETE -->
     <AppModal
       :is-open="isModalOpen"
-      :title="modalAction === 'complete' ? 'Complete Event?' : 'Delete Event Permanently?'"
-      :message="
-        modalAction === 'complete'
-          ? `Are you sure you want to mark '${selectedEvent?.title}' as completed? Once completed, the status is final and the event will be automatically removed from public listings.`
-          : `Are you sure you want to permanently delete '${selectedEvent?.title}'? This action cannot be undone and will permanently remove this event from all records.`
-      "
-      :confirm-text="
-        modalAction === 'complete'
-          ? 'Yes, Complete'
-          : 'Yes, Delete Permanently'
-      "
+      title="Delete Event Permanently?"
+      :message="`Are you sure you want to permanently delete '${selectedEvent?.title}'? This action cannot be undone.`"
+      confirm-text="Yes, Delete Permanently"
       cancel-text="Cancel"
       @confirm="handleConfirmModal"
       @close="handleCancelModal"
     />
+
   </div>
 </template>
 
 <style scoped>
+/* MAIN PAGE */
 .event-management-page {
+  width: 100%;
   max-width: 1200px;
   margin: 0 auto;
 }
 
+/* PAGE HEADER */
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--space-8);
+  gap: 24px;
+  margin-bottom: 36px;
   flex-wrap: wrap;
-  gap: var(--space-4);
+}
+
+.header-info {
+  flex: 1;
+  min-width: 250px;
 }
 
 .page-header h2 {
   font-size: 2rem;
+  line-height: 1.3;
   color: var(--text-main);
-  margin-bottom: var(--space-1);
+  margin: 0 0 10px;
 }
 
 .subtitle {
   color: var(--text-muted);
   font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
 }
 
-/* TAB SYSTEM */
+/* TAB NAVIGATION */
 .tabs-container {
   display: flex;
-  gap: var(--space-3);
+  align-items: center;
+  gap: 12px;
   border-bottom: 2px solid var(--border-color);
-  margin-bottom: var(--space-8);
-  padding-bottom: var(--space-2);
+  margin-bottom: 32px;
+  padding-bottom: 12px;
+  flex-wrap: wrap;
 }
 
 .tab-btn {
   background: none;
   border: none;
-  padding: var(--space-3) var(--space-6);
-  font-size: 1.05rem;
+  padding: 12px 20px;
+  font-size: 0.95rem;
   font-weight: 600;
   color: var(--text-muted);
   cursor: pointer;
   border-radius: 8px;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
+  white-space: nowrap;
 }
 
 .tab-btn:hover {
@@ -236,37 +384,100 @@ const handleCreateEvent = (eventData) => {
   color: white;
 }
 
-/* ORGANIZER EVENT CARDS GRID */
+/* TAB HEADING */
+.tab-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.tab-heading h3 {
+  color: var(--text-main);
+  font-size: 1.3rem;
+  margin: 0 0 8px;
+}
+
+.tab-heading p {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* EVENT GRID */
 .events-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: var(--space-6);
-  margin-bottom: var(--space-12);
+  gap: 28px;
+  align-items: stretch;
+  margin-bottom: 40px;
 }
 
 /* EMPTY STATE */
 .empty-state {
   text-align: center;
-  padding: var(--space-12);
+  padding: 48px 32px;
   background: white;
   border: 1px dashed var(--border-color);
-  border-radius: var(--space-4);
-  margin-bottom: var(--space-12);
+  border-radius: 12px;
+  margin: 32px 0;
 }
 
 .empty-icon {
   font-size: 3rem;
-  margin-bottom: var(--space-3);
+  margin-bottom: 18px;
 }
 
 .empty-state h3 {
   font-size: 1.5rem;
-  margin-bottom: var(--space-2);
+  color: var(--text-main);
+  margin: 0 0 12px;
 }
 
 .empty-state p {
   color: var(--text-muted);
-  margin-bottom: var(--space-6);
+  line-height: 1.7;
+  max-width: 500px;
+  margin: 0 auto 24px;
+}
+
+/* LOADING */
+.loading-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 24px;
+  margin-top: 24px;
+}
+
+/* ERROR */
+.error-card {
+  padding: 32px;
+  border-radius: 12px;
+  background: #fff1f1;
+  border: 1px solid #fecaca;
+  text-align: center;
+  color: #b91c1c;
+  margin: 24px 0;
+}
+
+.error-card h3 {
+  margin: 0 0 12px;
+}
+
+.retry-button {
+  background: #dc2626;
+  color: white;
+  border: none;
+  padding: 10px 22px;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-top: 16px;
+  font-weight: 600;
+}
+
+.retry-button:hover {
+  background: #b91c1c;
 }
 
 /* RESPONSIVE */
@@ -274,6 +485,39 @@ const handleCreateEvent = (eventData) => {
   .page-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .tabs-container {
+    gap: 8px;
+  }
+
+  .tab-btn {
+    padding: 10px 14px;
+    font-size: 0.85rem;
+  }
+
+  .events-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-header h2 {
+    font-size: 1.6rem;
+  }
+
+  .tabs-container {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tab-btn {
+    text-align: left;
+  }
+
+  .empty-state {
+    padding: 32px 20px;
   }
 }
 </style>
