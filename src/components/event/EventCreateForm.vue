@@ -1,9 +1,16 @@
 <script setup>
-import { reactive, ref } from 'vue';
-import AppCard from '@/components/ui/AppCard.vue';
-import AppButton from '@/components/ui/AppButton.vue';
+import { reactive, ref } from 'vue'
+import AppCard from '@/components/ui/AppCard.vue'
+import AppButton from '@/components/ui/AppButton.vue'
 
-const emit = defineEmits(['submit', 'cancel']);
+const emit = defineEmits(['submit', 'cancel'])
+
+const props = defineProps({
+  loading: {
+    type: Boolean,
+    default: false
+  }
+})
 
 // STATE FORMULIR CREATE EVENT
 const form = reactive({
@@ -12,38 +19,37 @@ const form = reactive({
   date: '',
   loc: '',
   quota: 100,
-  price: 'Free',
   desc: ''
-});
+})
 
-const errorMessage = ref('');
-const successMessage = ref('');
+const errorMessage = ref('')
+const successMessage = ref('')
 
 // Format helper to convert YYYY-MM-DDTHH:mm into a readable date
 const formatEventDate = (dt) => {
-  if (!dt) return '';
+  if (!dt) return ''
 
-  const dateObj = new Date(dt);
-  if (isNaN(dateObj.getTime())) return dt;
+  const dateObj = new Date(dt)
+
+  if (isNaN(dateObj.getTime())) return dt
 
   const datePart = dateObj.toLocaleDateString('en-US', {
     month: 'short',
     day: '2-digit',
     year: 'numeric'
-  });
+  })
 
   const timePart = dateObj.toLocaleTimeString('en-US', {
     hour: '2-digit',
     minute: '2-digit',
     hour12: true
-  });
+  })
 
-  return `${datePart} • ${timePart}`;
-};
+  return `${datePart} • ${timePart}`
+}
 
 // HANDLER SUBMIT FORM CREATE EVENT
 const handleSubmitEvent = () => {
-  // Validate Empty Input
   if (
     !form.title.trim() ||
     !form.date ||
@@ -51,41 +57,36 @@ const handleSubmitEvent = () => {
     !form.desc.trim()
   ) {
     errorMessage.value =
-      'Please fill in all required fields before publishing the event.';
-    successMessage.value = '';
-    return;
+      'Please fill in all required fields before publishing the event.'
+
+    successMessage.value = ''
+    return
   }
+
+  if (Number(form.quota) <= 0) {
+    errorMessage.value = 'Quota must be greater than zero.'
+    successMessage.value = ''
+    return
+  }
+
+  errorMessage.value = ''
+  successMessage.value = ''
 
   emit('submit', {
     title: form.title,
     cat: form.cat,
     date: formatEventDate(form.date),
     loc: form.loc,
-    quota: form.quota,
-    price: form.price,
+    quota: Number(form.quota),
     desc: form.desc
-  });
-
-  // Reset Form
-  form.title = '';
-  form.date = '';
-  form.loc = '';
-  form.quota = 100;
-  form.price = 'Free';
-  form.desc = '';
-  errorMessage.value = '';
-  successMessage.value = 'Event published successfully and is now live!';
-
-  // Clear success notification after 1 second
-  setTimeout(() => {
-    successMessage.value = '';
-  }, 1000);
-};
+  })
+}
 </script>
 
 <template>
   <AppCard class="form-card">
     <h3>Create New Event Form</h3>
+
     <p class="form-subtitle">
       Information entered here will be instantly published to the Gatherly
       public catalog.
@@ -102,6 +103,7 @@ const handleSubmitEvent = () => {
     <form @submit.prevent="handleSubmitEvent" class="event-form">
       <div class="form-group">
         <label>Event Title *</label>
+
         <input
           v-model="form.title"
           type="text"
@@ -113,6 +115,7 @@ const handleSubmitEvent = () => {
       <div class="form-row">
         <div class="form-group">
           <label>Event Category *</label>
+
           <select v-model="form.cat" class="form-input">
             <option value="Workshop">Workshop</option>
             <option value="Meetup">Meetup</option>
@@ -124,6 +127,7 @@ const handleSubmitEvent = () => {
 
         <div class="form-group">
           <label>Date &amp; Time *</label>
+
           <input
             v-model="form.date"
             type="datetime-local"
@@ -135,6 +139,7 @@ const handleSubmitEvent = () => {
       <div class="form-row">
         <div class="form-group">
           <label>Event Location *</label>
+
           <input
             v-model="form.loc"
             type="text"
@@ -145,10 +150,11 @@ const handleSubmitEvent = () => {
 
         <div class="form-group">
           <label>Attendee Quota</label>
+
           <input
             v-model.number="form.quota"
             type="number"
-            min="10"
+            min="1"
             placeholder="100"
             class="form-input"
           />
@@ -157,6 +163,7 @@ const handleSubmitEvent = () => {
 
       <div class="form-group">
         <label>Event Description *</label>
+
         <textarea
           v-model="form.desc"
           rows="4"
@@ -174,7 +181,12 @@ const handleSubmitEvent = () => {
           Cancel
         </button>
 
-        <AppButton variant="primary" type="submit">
+        <AppButton
+          variant="primary"
+          type="submit"
+          :loading="props.loading"
+          :disabled="props.loading"
+        >
           🚀 Publish Event Now
         </AppButton>
       </div>
